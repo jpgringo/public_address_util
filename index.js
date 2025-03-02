@@ -6,6 +6,7 @@ import {ethers} from 'ethers';
 import * as bitcoin from 'bitcoinjs-lib';
 import { ECPairFactory } from 'ecpair';
 import * as ecc from 'tiny-secp256k1';
+import StellarSdk from 'stellar-sdk';
 
 const SUPPORTED_CURRENCIES = [
   "bch", "btc",
@@ -61,6 +62,8 @@ console.log(`this is working:`, SUPPORTED_CURRENCIES.join(", "));
 
 // params here
 let currencyList = SUPPORTED_CURRENCIES
+currencyList = ['eth', 'xlm', 'qcad_xl', 'usdc_xl', 'vcad_xl']
+
 let generateMainnet = true
 let generateTestnet = true
 let generateDevnet = true
@@ -83,7 +86,7 @@ let addressMap = new Map()
 
 for (let currency of currencyList) {
   let addressSet = {}
-  const generator = usesEthAddress(currency) ? generateEthToken : usesBitcoinAddress(currency) ? generateBitcoinTokenSet : usesStellarAddress(currency) ? generateStellarToken : null
+  const generator = usesEthAddress(currency) ? generateEthToken : usesBitcoinAddress(currency) ? generateBitcoinTokenSet : usesStellarAddress(currency) ? generateStellarTokenSet : null
   const mapper = usesBitcoinAddress(currency) ? bitcoinSetMapper : null
   if (generator) {
     for (let network of networkList) {
@@ -147,7 +150,7 @@ async function generateBitcoinToken(currency = 'btc', network = 'mainnet', addre
                 addressType = 'cashaddr'; // Default to CashAddr format
             }
             break;
-            
+
         case 'ltc':
             // Litecoin network parameters
             bitcoinNetwork = {
@@ -165,7 +168,7 @@ async function generateBitcoinToken(currency = 'btc', network = 'mainnet', addre
                 bitcoinNetwork = bitcoin.networks.testnet;
             }
             break;
-            
+
         case 'dash':
             // Dash network parameters
             bitcoinNetwork = {
@@ -191,7 +194,7 @@ async function generateBitcoinToken(currency = 'btc', network = 'mainnet', addre
                 addressType = 'legacy'; // Fall back to legacy for DASH
             }
             break;
-            
+
         case 'btc':
         default:
             bitcoinNetwork = network === 'mainnet' ? bitcoin.networks.bitcoin : bitcoin.networks.testnet;
@@ -199,7 +202,7 @@ async function generateBitcoinToken(currency = 'btc', network = 'mainnet', addre
 
     const ECPair = ECPairFactory(ecc);
     const keyPair = ECPair.makeRandom({ network: bitcoinNetwork });
-    
+
     let address;
     if (currency.toLowerCase() === 'bch' && addressType === 'cashaddr') {
         // Generate legacy address first
@@ -220,7 +223,7 @@ async function generateBitcoinToken(currency = 'btc', network = 'mainnet', addre
                     network: bitcoinNetwork
                 }).address;
                 break;
-                
+
             case 'segwit':
                 // P2SH-P2WPKH (SegWit) address - will start with 'M' for Litecoin mainnet
                 address = bitcoin.payments.p2sh({
@@ -231,7 +234,7 @@ async function generateBitcoinToken(currency = 'btc', network = 'mainnet', addre
                     network: bitcoinNetwork
                 }).address;
                 break;
-                
+
             case 'native-segwit':
             default:
                 // P2WPKH (Native SegWit/Bech32) address - will start with 'ltc1' for Litecoin mainnet
@@ -296,15 +299,24 @@ function bitcoinSetMapper(addressSet) {
   return collatedAddressSet
 }
 
-async function generateStellarToken(currency = 'xlm', network = 'mainnet') {
-  // Create a new random wallet
-  const wallet = ethers.Wallet.createRandom();
 
-  // Return an object with the address and private key
-  return {
-    address: wallet.address,
-    privateKey: wallet.privateKey,
-    network: network,
-    type: 'stellar'
-  };
+
+async function generateStellarToken(currency = 'xlm', network = 'mainnet') {
+    // Create a new random keypair using Stellar SDK
+    const keypair = StellarSdk.Keypair.random();
+
+    // Stellar addresses are the same format regardless of network
+    // The network setting only affects which network the address is used on
+    return {
+        address: keypair.publicKey(),
+        privateKey: keypair.secret(),
+        network,
+        type: 'stellar'
+    };
+}
+
+async function generateStellarTokenSet(currency = 'xlm', network = 'mainnet') {
+    // Stellar addresses are uniform across all variants
+    const token = await generateStellarToken(currency, network);
+    return token.address;
 }
