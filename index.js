@@ -1,39 +1,56 @@
-import { ethers } from 'ethers';
+import {ethers} from 'ethers';
+import * as bitcoin from 'bitcoinjs-lib';
+import { ECPairFactory } from 'ecpair';
+import * as ecc from 'tiny-secp256k1';
 
 const SUPPORTED_CURRENCIES = [
-    "bch", "btc",
-    "dash",
-    "eigen", "etc", "eth", "eurs",
-    "fil",
-    "lseth", "ltc",
-    "pax", "paxg",
-    "qcad", "qcad_xl",
-    "usdc", "usdc_xl", "usdt",
-    "vcad", "vcad_xl",
-    "xlm", "xrp"
+  "bch", "btc",
+  "dash",
+  "eigen", "etc", "eth", "eurs",
+  "fil",
+  "lseth", "ltc",
+  "pax", "paxg",
+  "qcad", "qcad_xl",
+  "usdc", "usdc_xl", "usdt",
+  "vcad", "vcad_xl",
+  "xlm", "xrp"
 ]
 
 function usesEthAddress(currency) {
-    // Currencies that use Ethereum-style addresses (0x... format)
-    const ethereumStyleCurrencies = [
-        // Native chain currencies
-        'eth',
-        'etc', // Ethereum Classic
-        'eigen',
-        // ERC-20 tokens
-        'eurs',
-        'pax',
-        'paxg',
-        'usdc',
-        'usdt',
-        'qcad',
-        'vcad',
-        'lseth',
-        // Include non-_xl variants only
-        'qcad',
-        'vcad'
-    ];
-    return ethereumStyleCurrencies.includes(currency.toLowerCase());
+  // Currencies that use Ethereum-style addresses (0x... format)
+  const ethereumStyleCurrencies = [
+    // Native chain currencies
+    'eth',
+    'etc', // Ethereum Classic
+    'eigen',
+    // ERC-20 tokens
+    'eurs',
+    'pax',
+    'paxg',
+    'usdc',
+    'usdt',
+    'qcad',
+    'vcad',
+    'lseth',
+    // Include non-_xl variants only
+    'qcad',
+    'vcad'
+  ];
+  return ethereumStyleCurrencies.includes(currency.toLowerCase());
+}
+
+function usesBitcoinAddress(currency) {
+  const bitcoinStyleCurrencies = [
+    'btc',
+    'bch',
+    'ltc',
+    'dash'
+  ];
+  return bitcoinStyleCurrencies.includes(currency.toLowerCase());
+}
+
+function usesStellarAddress(currency) {
+  return currency.toLowerCase() === 'xlm' || currency.toLowerCase().endsWith('_xl');
 }
 
 console.log(`this is working:`, SUPPORTED_CURRENCIES.join(", "));
@@ -44,14 +61,14 @@ let generateMainnet = true
 let generateTestnet = true
 let generateDevnet = true
 
-let listSize = 1
+let listSize = 3
 
 const networkList = []
 
 networkList.push(...[
-    generateMainnet && 'mainnet',
-    generateTestnet && 'testnet',
-    generateDevnet && 'devnet'
+  generateMainnet && 'mainnet',
+  generateTestnet && 'testnet',
+  generateDevnet && 'devnet'
 ].filter(Boolean))
 
 let currency = currencyList[0]
@@ -60,35 +77,133 @@ console.log(`Generating ${listSize} ${currency} ${networkList.join('/')} address
 
 let addressMap = new Map()
 
-for(let currency of currencyList) {
-    const addressList = {}
-    if(usesEthAddress(currency)) {
-        for(let network of networkList) {
-
-        const addresses = []
-        for(let i = 0; i < listSize; i++) {
-          const token = await generateEthToken(network)
-          addresses.push(token.address)
-        }
-        addressList[network] = addresses
+for (let currency of currencyList) {
+  let addressSet = {}
+  const generator = usesEthAddress(currency) ? generateEthToken : usesBitcoinAddress(currency) ? generateBitcoinTokenSet : usesStellarAddress(currency) ? generateStellarToken : null
+  const mapper = usesBitcoinAddress(currency) ? bitcoinSetMapper : null
+  if (generator) {
+    for (let network of networkList) {
+      const addresses = []
+      for (let i = 0; i < listSize; i++) {
+        const token = await generator(currency, network)
+        addresses.push(token.address !== undefined ? token.address : token)
+      }
+      addressSet[network] = addresses
     }
-        addressMap.set(currency, addressList)
-    } else {
-        console.log(`${currency} uses a different address format`)
+    if(mapper) {
+      addressSet = mapper(addressSet)
     }
+    addressMap.set(currency, addressSet)
+  } else {
+    console.log(`${currency} address type not yet implemented`)
+  }
 }
 
-console.log(`Generated address map:`, addressMap)
+console.log(`Generated address map:`)
+console.log(JSON.stringify(Object.fromEntries(addressMap), null, 2))
 
-async function generateEthToken(network = 'mainnet') {
-    // Create a new random wallet
-    const wallet = ethers.Wallet.createRandom();
+async function generateEthToken(currencty = 'eth', network = 'mainnet') {
+  // Create a new random wallet
+  const wallet = ethers.Wallet.createRandom();
 
-    // Return an object with the address and private key
+  // Return an object with the address and private key
+  return {
+    address: wallet.address,
+    privateKey: wallet.privateKey,
+    network: network,
+    type: 'ethereum'
+  };
+}
+
+async function generateBitcoinToken(currency = 'btc', network = 'mainnet', addressType = 'native-segwit') {
+    // Select the appropriate network
+    const bitcoinNetwork = network === 'mainnet' ? bitcoin.networks.bitcoin : bitcoin.networks.testnet;
+
+    // Create ECPair factory
+    const ECPair = ECPairFactory(ecc);
+
+    // Generate a random key pair
+    const keyPair = ECPair.makeRandom({ network: bitcoinNetwork });
+
+    // Generate address based on type
+    let address;
+    switch (addressType.toLowerCase()) {
+        case 'legacy':
+            // P2PKH (Legacy) address
+            address = bitcoin.payments.p2pkh({
+                pubkey: keyPair.publicKey,
+                network: bitcoinNetwork
+            }).address;
+            break;
+
+        case 'segwit':
+            // P2SH-P2WPKH (SegWit) address
+            address = bitcoin.payments.p2sh({
+                redeem: bitcoin.payments.p2wpkh({
+                    pubkey: keyPair.publicKey,
+                    network: bitcoinNetwork
+                }),
+                network: bitcoinNetwork
+            }).address;
+            break;
+
+        case 'native-segwit':
+        default:
+            // P2WPKH (Native SegWit/Bech32) address
+            address = bitcoin.payments.p2wpkh({
+                pubkey: keyPair.publicKey,
+                network: bitcoinNetwork
+            }).address;
+            break;
+    }
+
     return {
-        address: wallet.address,
-        privateKey: wallet.privateKey,
-        network: network,
-        type: 'ethereum'
+        address,
+        privateKey: keyPair.privateKey.toString('hex'),
+        network,
+        type: 'bitcoin',
+        addressType
     };
+}
+
+async function generateBitcoinTokenSet(currency = 'btc', network = 'mainnet') {
+
+  const legacy = await generateBitcoinToken(currency, network, 'legacy');
+  const segwit = await generateBitcoinToken(currency, network, 'segwit');
+  const nativeSegwit = await generateBitcoinToken(currency, network, 'native-segwit');
+  return {
+        legacy: legacy.address,
+        segwit: segwit.address,
+        native: nativeSegwit.address}
+}
+
+function bitcoinSetMapper(addressSet) {
+  const collatedAddressSet = {}
+  for (let [network, addresses] of Object.entries(addressSet)) {
+    const collatedAddresses = {}
+    for(let tokenSet of addresses) {
+      for(let [tokenType, address] of Object.entries(tokenSet)) {
+        if(!collatedAddresses[tokenType]) {
+          collatedAddresses[tokenType] = [address]
+        } else {
+          collatedAddresses[tokenType].push(address)
+        }
+      }
+    }
+    collatedAddressSet[network] = collatedAddresses
+  }
+  return collatedAddressSet
+}
+
+async function generateStellarToken(currency = 'xlm', network = 'mainnet') {
+  // Create a new random wallet
+  const wallet = ethers.Wallet.createRandom();
+
+  // Return an object with the address and private key
+  return {
+    address: wallet.address,
+    privateKey: wallet.privateKey,
+    network: network,
+    type: 'stellar'
+  };
 }
