@@ -9,6 +9,8 @@ import * as ecc from 'tiny-secp256k1';
 import StellarSdk from 'stellar-sdk';
 import blake2b from 'blake2b';
 import base32Encode from 'base32-encode';
+import * as xrpl from 'xrpl';
+import { Wallet } from 'xrpl';
 
 const SUPPORTED_CURRENCIES = [
   "bch", "btc",
@@ -64,11 +66,15 @@ function usesFilecoinAddress(currency) {
     return currency.toLowerCase() === 'fil';
 }
 
+function usesRippleAddress(currency) {
+    return currency.toLowerCase() === 'xrp';
+}
+
 console.log(`this is working:`, SUPPORTED_CURRENCIES.join(", "));
 
 // params here
 let currencyList = SUPPORTED_CURRENCIES
-currencyList = ['eth', 'fil']
+currencyList = ['eth', 'fil', 'xrp']
 
 let generateMainnet = true
 let generateTestnet = true
@@ -92,7 +98,7 @@ let addressMap = new Map()
 
 for (let currency of currencyList) {
   let addressSet = {}
-  const generator = usesEthAddress(currency) ? generateEthToken : usesBitcoinAddress(currency) ? generateBitcoinTokenSet : usesStellarAddress(currency) ? generateStellarTokenSet : usesFilecoinAddress(currency) ? generateFilecoinToken : null
+  const generator = usesEthAddress(currency) ? generateEthToken : usesBitcoinAddress(currency) ? generateBitcoinTokenSet : usesStellarAddress(currency) ? generateStellarTokenSet : usesFilecoinAddress(currency) ? generateFilecoinToken : usesRippleAddress(currency) ? generateRippleToken : null
   const mapper = usesBitcoinAddress(currency) ? bitcoinSetMapper : null
   if (generator) {
     for (let network of networkList) {
@@ -330,27 +336,39 @@ async function generateStellarTokenSet(currency = 'xlm', network = 'mainnet') {
 async function generateFilecoinToken(currency = 'fil', network = 'mainnet') {
     // Filecoin addresses start with f1 (mainnet) or t1 (testnet) for secp256k1 addresses
     const prefix = network === 'mainnet' ? 'f1' : 't1';
-    
+
     // Generate secp256k1 keypair
     const ECPair = ECPairFactory(ecc);
     const keyPair = ECPair.makeRandom();
-    
+
     // Hash the public key with Blake2b-160
     const output = new Uint8Array(20); // 160 bits
     const hash = blake2b(output.length)
         .update(keyPair.publicKey)
         .digest();
-    
+
     // Encode with base32
     const encoded = base32Encode(hash, 'RFC4648-HEX', { padding: false });
-    
+
     // Combine prefix and encoded hash
     const address = `${prefix}${encoded.toLowerCase()}`;
-    
+
     return {
         address,
         privateKey: keyPair.privateKey.toString('hex'),
         network,
         type: 'filecoin'
+    };
+}
+
+async function generateRippleToken(currency = 'xrp', network = 'mainnet') {
+    // Generate a new wallet with a random seed
+    const wallet = Wallet.generate();
+    
+    return {
+        address: wallet.address,
+        privateKey: wallet.seed,  // XRP uses a "seed" as private key
+        network,
+        type: 'ripple'
     };
 }
