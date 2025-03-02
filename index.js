@@ -9,8 +9,8 @@ import * as ecc from 'tiny-secp256k1';
 import StellarSdk from 'stellar-sdk';
 import blake2b from 'blake2b';
 import base32Encode from 'base32-encode';
-import * as xrpl from 'xrpl';
 import { Wallet } from 'xrpl';
+import { Command } from 'commander';
 
 const SUPPORTED_CURRENCIES = [
   "bch", "btc",
@@ -70,29 +70,52 @@ function usesRippleAddress(currency) {
     return currency.toLowerCase() === 'xrp';
 }
 
-console.log(`this is working:`, SUPPORTED_CURRENCIES.join(", "));
+const program = new Command();
 
-// params here
-let currencyList = SUPPORTED_CURRENCIES
-currencyList = ['eth', 'fil', 'xrp']
+program
+    .name('address-generator')
+    .description('Generate cryptocurrency addresses for various chains')
+    .version('0.0.0')
+    .option('-c, --currencies <currencies...>',
+        'currencies to generate (comma or space separated)\n' +
+        'supported: ' + SUPPORTED_CURRENCIES.join(', '),
+        SUPPORTED_CURRENCIES)
+    .option('-n, --networks <networks...>',
+        'networks to generate (comma or space separated)\n' +
+        'options: mainnet, testnet, devnet',
+        ['mainnet', 'testnet', 'devnet'])
+    .option('-s, --size <number>',
+        'number of addresses to generate per currency/network',
+        '1')
+    .addHelpText('after', `
+Examples:
+  # Generate one address for each currency on all networks
+  $ address-generator
 
-let generateMainnet = true
-let generateTestnet = true
-let generateDevnet = true
+  # Generate 5 ETH and BTC addresses on mainnet only
+  $ address-generator -c eth btc -n mainnet -s 5
 
-let listSize = 3
+  # Generate XRP addresses on testnet only
+  $ address-generator -c xrp -n testnet
 
-const networkList = []
+  # Generate multiple addresses for specific networks
+  $ address-generator -c eth btc xrp -n mainnet testnet -s 3
 
-networkList.push(...[
-  generateMainnet && 'mainnet',
-  generateTestnet && 'testnet',
-  generateDevnet && 'devnet'
-].filter(Boolean))
+Notes:
+  - Bitcoin-style addresses (BTC, LTC, BCH, DASH) will generate multiple formats where supported
+  - Some networks may not support all address types
+  - Private keys are not saved, make sure to store them securely`);
 
-let currency = currencyList[0]
+program.parse();
 
-console.log(`Generating ${listSize} ${currency} ${networkList.join('/')} addresses...`)
+const options = program.opts();
+
+// Replace our hardcoded values with command line options
+let currencyList = options.currencies;
+let listSize = parseInt(options.size);
+
+// Use the networks option directly
+const networkList = options.networks;
 
 let addressMap = new Map()
 
@@ -364,7 +387,7 @@ async function generateFilecoinToken(currency = 'fil', network = 'mainnet') {
 async function generateRippleToken(currency = 'xrp', network = 'mainnet') {
     // Generate a new wallet with a random seed
     const wallet = Wallet.generate();
-    
+
     return {
         address: wallet.address,
         privateKey: wallet.seed,  // XRP uses a "seed" as private key
