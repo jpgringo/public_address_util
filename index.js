@@ -116,28 +116,48 @@ async function generateEthToken(currencty = 'eth', network = 'mainnet') {
 }
 
 async function generateBitcoinToken(currency = 'btc', network = 'mainnet', addressType = 'native-segwit') {
-    // Select the appropriate network
-    const bitcoinNetwork = network === 'mainnet' ? bitcoin.networks.bitcoin : bitcoin.networks.testnet;
+    // Select the appropriate network based on currency and network type
+    let bitcoinNetwork;
+    switch (currency.toLowerCase()) {
+        case 'ltc':
+            // Litecoin network parameters
+            bitcoinNetwork = {
+                messagePrefix: '\x19Litecoin Signed Message:\n',
+                bech32: 'ltc',
+                bip32: {
+                    public: 0x019da462,
+                    private: 0x019d9cfe
+                },
+                pubKeyHash: 0x30, // Starts with 'L'
+                scriptHash: 0x32, // Starts with 'M'
+                wif: 0xb0
+            };
+            if (network === 'testnet') {
+                bitcoinNetwork = bitcoin.networks.testnet; // Litecoin testnet uses same params as Bitcoin testnet
+            }
+            break;
+            
+        case 'btc':
+        default:
+            bitcoinNetwork = network === 'mainnet' ? bitcoin.networks.bitcoin : bitcoin.networks.testnet;
+    }
 
-    // Create ECPair factory
+    // Rest of the function remains the same
     const ECPair = ECPairFactory(ecc);
-
-    // Generate a random key pair
     const keyPair = ECPair.makeRandom({ network: bitcoinNetwork });
-
-    // Generate address based on type
+    
     let address;
     switch (addressType.toLowerCase()) {
         case 'legacy':
-            // P2PKH (Legacy) address
+            // P2PKH (Legacy) address - will start with 'L' for Litecoin mainnet
             address = bitcoin.payments.p2pkh({
                 pubkey: keyPair.publicKey,
                 network: bitcoinNetwork
             }).address;
             break;
-
+            
         case 'segwit':
-            // P2SH-P2WPKH (SegWit) address
+            // P2SH-P2WPKH (SegWit) address - will start with 'M' for Litecoin mainnet
             address = bitcoin.payments.p2sh({
                 redeem: bitcoin.payments.p2wpkh({
                     pubkey: keyPair.publicKey,
@@ -146,10 +166,10 @@ async function generateBitcoinToken(currency = 'btc', network = 'mainnet', addre
                 network: bitcoinNetwork
             }).address;
             break;
-
+            
         case 'native-segwit':
         default:
-            // P2WPKH (Native SegWit/Bech32) address
+            // P2WPKH (Native SegWit/Bech32) address - will start with 'ltc1' for Litecoin mainnet
             address = bitcoin.payments.p2wpkh({
                 pubkey: keyPair.publicKey,
                 network: bitcoinNetwork
@@ -161,7 +181,7 @@ async function generateBitcoinToken(currency = 'btc', network = 'mainnet', addre
         address,
         privateKey: keyPair.privateKey.toString('hex'),
         network,
-        type: 'bitcoin',
+        type: currency.toLowerCase(),
         addressType
     };
 }
