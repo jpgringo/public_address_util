@@ -22,6 +22,7 @@
     "stellar-sdk": "^10.0.0",
     "xrpl": "^2.0.0",
     "ecpair": "^2.1.0",
-    "tiny-secp256k1": "^2.2.3"
+    "tiny-secp256k1": "^2.2.3",
+    "cashaddrjs": "^0.4.4"
   }
 }
