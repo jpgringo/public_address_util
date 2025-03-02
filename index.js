@@ -39,28 +39,39 @@ function usesEthAddress(currency) {
 console.log(`this is working:`, SUPPORTED_CURRENCIES.join(", "));
 
 // params here
-let currencyList = ['eth', 'btc', 'xrp']
+let currencyList = SUPPORTED_CURRENCIES
 let generateMainnet = true
 let generateTestnet = true
+let generateDevnet = true
 
-let listSize = 10
-let network = generateMainnet ? 'mainnet' : generateTestnet ? 'testnet' : 'devnet'
+let listSize = 1
+
+const networkList = []
+
+networkList.push(...[
+    generateMainnet && 'mainnet',
+    generateTestnet && 'testnet',
+    generateDevnet && 'devnet'
+].filter(Boolean))
 
 let currency = currencyList[0]
 
-console.log(`Generating ${listSize} ${currency} ${network} addresses...`)
+console.log(`Generating ${listSize} ${currency} ${networkList.join('/')} addresses...`)
 
 let addressMap = new Map()
 
 for(let currency of currencyList) {
     const addressList = {}
     if(usesEthAddress(currency)) {
+        for(let network of networkList) {
+
         const addresses = []
         for(let i = 0; i < listSize; i++) {
           const token = await generateEthToken(network)
           addresses.push(token.address)
         }
         addressList[network] = addresses
+    }
         addressMap.set(currency, addressList)
     } else {
         console.log(`${currency} uses a different address format`)
