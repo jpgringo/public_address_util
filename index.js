@@ -133,7 +133,33 @@ async function generateBitcoinToken(currency = 'btc', network = 'mainnet', addre
                 wif: 0xb0
             };
             if (network === 'testnet') {
-                bitcoinNetwork = bitcoin.networks.testnet; // Litecoin testnet uses same params as Bitcoin testnet
+                bitcoinNetwork = bitcoin.networks.testnet;
+            }
+            break;
+            
+        case 'dash':
+            // Dash network parameters
+            bitcoinNetwork = {
+                messagePrefix: '\x19DarkCoin Signed Message:\n',
+                bip32: {
+                    public: 0x0488b21e,
+                    private: 0x0488ade4
+                },
+                pubKeyHash: 0x4c, // Starts with 'X'
+                scriptHash: 0x10, // Starts with '7'
+                wif: 0xcc
+            };
+            if (network === 'testnet') {
+                bitcoinNetwork = {
+                    ...bitcoinNetwork,
+                    pubKeyHash: 0x8c, // Testnet starts with 'y'
+                    scriptHash: 0x13,
+                    wif: 0xef
+                };
+            }
+            // Note: DASH doesn't support native SegWit addresses
+            if (addressType === 'native-segwit') {
+                addressType = 'legacy'; // Fall back to legacy for DASH
             }
             break;
             
@@ -187,14 +213,23 @@ async function generateBitcoinToken(currency = 'btc', network = 'mainnet', addre
 }
 
 async function generateBitcoinTokenSet(currency = 'btc', network = 'mainnet') {
+    // For DASH, only generate legacy address
+    if (currency.toLowerCase() === 'dash') {
+        const legacy = await generateBitcoinToken(currency, network, 'legacy');
+        return {
+            legacy: legacy.address
+        };
+    }
 
-  const legacy = await generateBitcoinToken(currency, network, 'legacy');
-  const segwit = await generateBitcoinToken(currency, network, 'segwit');
-  const nativeSegwit = await generateBitcoinToken(currency, network, 'native-segwit');
-  return {
+    // For other Bitcoin-style currencies, generate all supported formats
+    const legacy = await generateBitcoinToken(currency, network, 'legacy');
+    const segwit = await generateBitcoinToken(currency, network, 'segwit');
+    const nativeSegwit = await generateBitcoinToken(currency, network, 'native-segwit');
+    return {
         legacy: legacy.address,
         segwit: segwit.address,
-        native: nativeSegwit.address}
+        native: nativeSegwit.address
+    };
 }
 
 function bitcoinSetMapper(addressSet) {
