@@ -7,6 +7,8 @@ import * as bitcoin from 'bitcoinjs-lib';
 import { ECPairFactory } from 'ecpair';
 import * as ecc from 'tiny-secp256k1';
 import StellarSdk from 'stellar-sdk';
+import blake2b from 'blake2b';
+import base32Encode from 'base32-encode';
 
 const SUPPORTED_CURRENCIES = [
   "bch", "btc",
@@ -58,11 +60,15 @@ function usesStellarAddress(currency) {
   return currency.toLowerCase() === 'xlm' || currency.toLowerCase().endsWith('_xl');
 }
 
+function usesFilecoinAddress(currency) {
+    return currency.toLowerCase() === 'fil';
+}
+
 console.log(`this is working:`, SUPPORTED_CURRENCIES.join(", "));
 
 // params here
 let currencyList = SUPPORTED_CURRENCIES
-currencyList = ['eth', 'xlm', 'qcad_xl', 'usdc_xl', 'vcad_xl']
+currencyList = ['eth', 'fil']
 
 let generateMainnet = true
 let generateTestnet = true
@@ -86,7 +92,7 @@ let addressMap = new Map()
 
 for (let currency of currencyList) {
   let addressSet = {}
-  const generator = usesEthAddress(currency) ? generateEthToken : usesBitcoinAddress(currency) ? generateBitcoinTokenSet : usesStellarAddress(currency) ? generateStellarTokenSet : null
+  const generator = usesEthAddress(currency) ? generateEthToken : usesBitcoinAddress(currency) ? generateBitcoinTokenSet : usesStellarAddress(currency) ? generateStellarTokenSet : usesFilecoinAddress(currency) ? generateFilecoinToken : null
   const mapper = usesBitcoinAddress(currency) ? bitcoinSetMapper : null
   if (generator) {
     for (let network of networkList) {
@@ -319,4 +325,32 @@ async function generateStellarTokenSet(currency = 'xlm', network = 'mainnet') {
     // Stellar addresses are uniform across all variants
     const token = await generateStellarToken(currency, network);
     return token.address;
+}
+
+async function generateFilecoinToken(currency = 'fil', network = 'mainnet') {
+    // Filecoin addresses start with f1 (mainnet) or t1 (testnet) for secp256k1 addresses
+    const prefix = network === 'mainnet' ? 'f1' : 't1';
+    
+    // Generate secp256k1 keypair
+    const ECPair = ECPairFactory(ecc);
+    const keyPair = ECPair.makeRandom();
+    
+    // Hash the public key with Blake2b-160
+    const output = new Uint8Array(20); // 160 bits
+    const hash = blake2b(output.length)
+        .update(keyPair.publicKey)
+        .digest();
+    
+    // Encode with base32
+    const encoded = base32Encode(hash, 'RFC4648-HEX', { padding: false });
+    
+    // Combine prefix and encoded hash
+    const address = `${prefix}${encoded.toLowerCase()}`;
+    
+    return {
+        address,
+        privateKey: keyPair.privateKey.toString('hex'),
+        network,
+        type: 'filecoin'
+    };
 }

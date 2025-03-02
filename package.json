@@ -23,6 +23,8 @@
     "xrpl": "^2.0.0",
     "ecpair": "^2.1.0",
     "tiny-secp256k1": "^2.2.3",
-    "cashaddrjs": "^0.4.4"
+    "cashaddrjs": "^0.4.4",
+    "blake2b": "^2.1.4",
+    "base32-encode": "^2.0.0"
   }
 }
