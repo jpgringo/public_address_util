@@ -12,7 +12,7 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
-  "author": "Paradiso Ventures Inc",
+  "author": "Rick Walters",
   "license": "ISC",
   "dependencies": {
     "bitcoinjs-lib": "^6.0.0",
