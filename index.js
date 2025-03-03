@@ -20,9 +20,9 @@ const SUPPORTED_CURRENCIES = [
   "fil",
   "lseth", "ltc",
   "pax", "paxg",
-  "qcad", "qcad_xl",
-  "usdc", "usdc_xl", "usdt",
-  "vcad", "vcad_xl",
+  "qcad", "qcad_xlm",
+  "usdc", "usdc_xlm", "usdt",
+  "vcad", "vcad_xlm",
   "xlm", "xrp"
 ]
 
@@ -60,7 +60,7 @@ function usesBitcoinAddress(currency) {
 }
 
 function usesStellarAddress(currency) {
-  return currency.toLowerCase() === 'xlm' || currency.toLowerCase().endsWith('_xl');
+  return currency.toLowerCase() === 'xlm' || currency.toLowerCase().endsWith('_xlm');
 }
 
 function usesFilecoinAddress(currency) {
