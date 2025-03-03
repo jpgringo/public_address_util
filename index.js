@@ -11,6 +11,7 @@ import blake2b from 'blake2b';
 import base32Encode from 'base32-encode';
 import { Wallet } from 'xrpl';
 import { Command } from 'commander';
+import chalk from 'chalk';
 
 const SUPPORTED_CURRENCIES = [
   "bch", "btc",
@@ -141,7 +142,7 @@ for (let currency of currencyList) {
   }
 }
 
-console.log(`Generated address map:`)
+console.log(chalk.bold.green(`Generated address map:`))
 console.log(JSON.stringify(Object.fromEntries(addressMap), null, 2))
 
 async function generateEthToken(currencty = 'eth', network = 'mainnet') {
